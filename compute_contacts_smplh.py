@@ -183,7 +183,7 @@ def main(args):
 
             
             samples, contacts, vertices, faces = generator.get_contact_labels(
-                generator.to_trimesh(smpl), generator.to_trimesh(obj), args.num_samples
+                generator.to_trimesh(smpl), generator.to_trimesh(obj), args.num_samples, thres=args.thres
             )
            
 
@@ -219,8 +219,6 @@ def main(args):
 
             })
 
-            print(res_list[-1])
-
         if args.out is None:
             out_pth = seq_path
         else:
@@ -243,6 +241,7 @@ if __name__ == '__main__':
     parser.add_argument('-fs', '--start', type=int, default=0, help='index of the start frame')
     parser.add_argument('-fe', '--end', type=int, default=None)
     parser.add_argument('-n', '--num_samples', type=int, default=10000)
+    parser.add_argument('--thres', type=float, default=0.02, help='Distance threshold to bo considered as contact')
     parser.add_argument('-o', '--out', type=str, default=None, help='Save directory. If not specified, results will be stored in the original directories')
 
     args = parser.parse_args()
