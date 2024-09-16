@@ -1,3 +1,15 @@
+# USAGE
+
+```
+cd behave-dataset
+# Process entire dataset
+python compute_contacts_smplh.py -s BEHAVE_PATH/sequences/
+# or specific sequence
+python compute_contacts_smplh.py -s BEHAVE_PATH/sequences/SEQUENCE_NAME/
+```
+
+
+# BELOW IS FROM ORIGINAL REPO
 # BEHAVE dataset (CVPR'22)
 [[ArXiv]](https://arxiv.org/abs/2204.06950) [[Project Page]](http://virtualhumans.mpi-inf.mpg.de/behave)
 <p align="center">
