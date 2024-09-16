@@ -1,1 +1,2 @@
-support_data/mano/*
+support_data/mano/SMPLH_female.pkl
+support_data/mano/SMPLH_male.pkl
