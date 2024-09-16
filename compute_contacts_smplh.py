@@ -27,6 +27,7 @@ import json
 from tqdm import tqdm
 
 from libsmpl.smplpytorch.pytorch.smpl_layer import SMPL_Layer
+from collections import defaultdict
 
 class ContactLabelGenerator(object):
     "class to generate contact labels"
@@ -86,6 +87,22 @@ def check_directory_valid(input_directory):
     data_pths.append(input_directory)
 
     return data_pths
+
+
+def make_vertex_face_mapping(faces):
+    contact_vert_indices = np.unique(faces).tolist()
+
+    vertice_face_mapping = {}
+    for vert_id in contact_vert_indices:
+
+        # True if face contains vert id
+        mask = (faces == vert_id).any(-1)
+        face_indices = np.where(mask)[0]
+
+        vertice_face_mapping[vert_id] = face_indices.tolist()
+
+
+    return contact_vert_indices, vertice_face_mapping
 
 def draw_points(img, points):
     for i in range(points.shape[0]):
@@ -174,24 +191,35 @@ def main(args):
             ts = reader.frames[idx]
             
             if contacts.sum() > 5: 
+                contact_faces = faces[contacts]
                 # points2d = kinect_transform.project2color(vertices[contacts], kid)
+                contact_vert_indices, vert_to_face_mapping = make_vertex_face_mapping(contact_faces)
 
-                contact_vert_indices = np.unique(faces[contacts]).tolist()
+                contact_faces = contact_faces.tolist()
+
                 # contact_vert_indices = set(np.array(faces)[contacts].tolist())
                 contact_parts = get_contact_parts(contact_vert_indices, smpl_vert_seg)
 
+                
+
             else:
-                contact_vert_indices = []
-                contact_parts = []
+                contact_vert_indices = None
+                contact_parts = None
+                vert_to_face_mapping = None
+                contact_faces = None
+                
 
             res_list.append({
                 'ts': ts,
                 'contact_vert_indices': contact_vert_indices,
+                'contact_faces': contact_faces,
                 'contact_parts': contact_parts,
+                'vert_to_face_mapping': vert_to_face_mapping,
                 'smplh': {'pose': smpl_params[0], 'betas': smpl_params[1], 'trans': smpl_params[2]},
 
             })
 
+            print(res_list[-1])
 
         if args.out is None:
             out_pth = seq_path
