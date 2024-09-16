@@ -127,7 +127,10 @@ def compute_normalized_bounding_box(mask):
 
 def main(args):
 
-    smpl_vert_seg = json.load(open('support_data/smpl_vert_segmentation.json', 'r'))
+
+    current_directory = os.path.dirname(os.path.abspath(__file__))
+
+    smpl_vert_seg = json.load(open(os.path.join(current_directory, 'support_data/smpl_vert_segmentation.json'), 'r'))
 
    
 
