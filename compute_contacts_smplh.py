@@ -46,11 +46,15 @@ class ContactLabelGenerator(object):
         for each point: a binary label (contact or not) and the closest SMPL vertex
         """
         object_points = obj.sample(num_samples)
-        dist, idx, vertices = igl.signed_distance(object_points, smpl.vertices, smpl.faces, return_normals=False)
 
-        # closest_faces = smpl.faces[idx]
+        # dist: Distance between each object point to closest smpl faces
+        # idx: Each object point's closest face id
+        dist, face_ids, _ = igl.signed_distance(object_points, smpl.vertices, smpl.faces, return_normals=False)
 
-        return object_points, dist<thres, vertices, smpl.faces[idx]
+        # If distance is smaller than threshold, define as contact
+        contact = dist < thres
+
+        return object_points, contact, face_ids[contact]
 
     def to_trimesh(self, mesh):
         tri = trimesh.Trimesh(mesh.v, mesh.f, process=False)
@@ -89,8 +93,8 @@ def check_directory_valid(input_directory):
     return data_pths
 
 
-def make_vertex_face_mapping(faces):
-    contact_vert_indices = np.unique(faces).tolist()
+def make_vertex_face_mapping(faces, contact_vert_indices):
+    # contact_vert_indices = np.unique(faces).tolist()
 
     vertice_face_mapping = {}
     for vert_id in contact_vert_indices:
@@ -102,7 +106,7 @@ def make_vertex_face_mapping(faces):
         vertice_face_mapping[vert_id] = face_indices.tolist()
 
 
-    return contact_vert_indices, vertice_face_mapping
+    return vertice_face_mapping
 
 def draw_points(img, points):
     for i in range(points.shape[0]):
@@ -181,21 +185,33 @@ def main(args):
 
             smpl_params = reader.get_smplfit_params(idx, smpl_fit_name)
 
+            smpl_trimesh = generator.to_trimesh(smpl)
+            obj_trimesh = generator.to_trimesh(obj)
             
-            samples, contacts, vertices, faces = generator.get_contact_labels(
-                generator.to_trimesh(smpl), generator.to_trimesh(obj), args.num_samples, thres=args.thres
+
+            # contacts: (N, ) For each sampled object point, True if there is a contact
+            # vertices: (N, 3) For each sampled object point, the nearest contacted vertice coordinate
+            # faces_ids: (N, ) For each sampled object point, the nearest contacted face id
+            samples, contacts, contact_faces_ids = generator.get_contact_labels(
+                smpl_trimesh, obj_trimesh, args.num_samples, thres=args.thres
             )
            
+            # print(smpl_trimesh.vertices.shape, smpl_trimesh.faces.shape)
+            # print(smpl_trimesh.vertices)
 
            
             ts = reader.frames[idx]
             
-            if contacts.sum() > 5: 
-                contact_faces = faces[contacts]
+            if len(contact_faces_ids) > 0: 
+                contact_faces_ids = np.unique(contact_faces_ids)
+                contact_faces = np.array(smpl_trimesh.faces)[contact_faces_ids]
+                contact_vert_indices = np.unique(contact_faces)
                 # points2d = kinect_transform.project2color(vertices[contacts], kid)
-                contact_vert_indices, vert_to_face_mapping = make_vertex_face_mapping(contact_faces)
 
-                contact_faces = contact_faces.tolist()
+                # For each contact vertice
+                vert_to_face_mapping = make_vertex_face_mapping(smpl_trimesh.faces, contact_vert_indices)
+
+                # contact_faces = contact_faces.tolist()
 
                 # contact_vert_indices = set(np.array(faces)[contacts].tolist())
                 contact_parts = get_contact_parts(contact_vert_indices, smpl_vert_seg)
@@ -203,6 +219,7 @@ def main(args):
                 
 
             else:
+                contact_faces_ids = None
                 contact_vert_indices = None
                 contact_parts = None
                 vert_to_face_mapping = None
@@ -213,11 +230,15 @@ def main(args):
                 'ts': ts,
                 'contact_vert_indices': contact_vert_indices,
                 'contact_faces': contact_faces,
+                'contact_face_ids': contact_faces_ids,
                 'contact_parts': contact_parts,
                 'vert_to_face_mapping': vert_to_face_mapping,
                 'smplh': {'pose': smpl_params[0], 'betas': smpl_params[1], 'trans': smpl_params[2]},
+                'smpl_vert_coords': np.array(smpl_trimesh.vertices),
 
             })
+
+            print(res_list[-1])
 
         if args.out is None:
             out_pth = seq_path
