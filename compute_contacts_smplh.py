@@ -29,6 +29,10 @@ from tqdm import tqdm
 from libsmpl.smplpytorch.pytorch.smpl_layer import SMPL_Layer
 from collections import defaultdict
 
+import torch
+
+import matplotlib.pyplot as plt
+
 class ContactLabelGenerator(object):
     "class to generate contact labels"
     def __init__(self):
@@ -146,6 +150,39 @@ def compute_normalized_bounding_box(mask):
     return x_min_norm, y_min_norm, x_max_norm, y_max_norm
 
 
+def plot_3d_points(joints):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Plot keypoints
+    ax.scatter(joints[:, 0], joints[:, 1], joints[:, 2], c='b', marker='o')
+
+    # Set labels
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+
+    # Set equal scaling for all axes
+    x_limits = [min(joints[:, 0]), max(joints[:, 0])]
+    y_limits = [min(joints[:, 1]), max(joints[:, 1])]
+    z_limits = [min(joints[:, 2]), max(joints[:, 2])]
+
+    # Get the range of each axis
+    ranges = np.array([x_limits, y_limits, z_limits])
+    max_range = np.ptp(ranges)  # Point to point, the max range
+
+    # Set the limits to be centered around the midpoint with the same range
+    mid_x = np.mean(x_limits)
+    mid_y = np.mean(y_limits)
+    mid_z = np.mean(z_limits)
+
+    ax.set_xlim(mid_x - max_range / 2, mid_x + max_range / 2)
+    ax.set_ylim(mid_y - max_range / 2, mid_y + max_range / 2)
+    ax.set_zlim(mid_z - max_range / 2, mid_z + max_range / 2)
+
+    plt.show()
+    plt.close()
+
 def main(args):
 
 
@@ -153,7 +190,11 @@ def main(args):
 
     smpl_vert_seg = json.load(open(os.path.join(current_directory, 'support_data/smpl_vert_segmentation.json'), 'r'))
 
-   
+    model_root = os.path.join(current_directory, 'support_data/mano')
+
+  
+    smpl_model = SMPL_Layer(center_idx=0, gender="male", num_betas=10,
+                        model_root=str(model_root), hands=True)
 
     save_res = []
 
@@ -183,11 +224,21 @@ def main(args):
             smpl = reader.get_smplfit(idx, smpl_fit_name)
             obj = reader.get_objfit(idx, obj_fit_name)
 
-            smpl_params = reader.get_smplfit_params(idx, smpl_fit_name)
-
             smpl_trimesh = generator.to_trimesh(smpl)
             obj_trimesh = generator.to_trimesh(obj)
-            
+
+           
+            smpl_params = reader.get_smplfit_params(idx, smpl_fit_name)
+            pose = torch.Tensor(smpl_params[0][None, ...])
+            betas = torch.Tensor(smpl_params[1][None, ...])
+            trans = torch.Tensor(smpl_params[2][None, ...])
+
+            verts, jtr,_,  _ = smpl_model(pose, th_betas=betas, th_trans=trans)
+            verts = verts[0].cpu().numpy()
+
+            jtr = jtr[0].cpu().numpy()
+
+            # plot_3d_points(smpl_trimesh.vertices)
 
             # contacts: (N, ) For each sampled object point, True if there is a contact
             # vertices: (N, 3) For each sampled object point, the nearest contacted vertice coordinate
@@ -235,10 +286,10 @@ def main(args):
                 'vert_to_face_mapping': vert_to_face_mapping,
                 'smplh': {'pose': smpl_params[0], 'betas': smpl_params[1], 'trans': smpl_params[2]},
                 'smpl_vert_coords': np.array(smpl_trimesh.vertices),
+                'smpl_joint_coords': jtr,
 
             })
 
-            print(res_list[-1])
 
         if args.out is None:
             out_pth = seq_path
